@@ -1,0 +1,933 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+  DRIVER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CustomerStatus {
+  NORMAL
+  BLACKLISTED
+}
+
+enum OwnershipType {
+  COMPANY_OWNED
+  PERSONALLY_OWNED
+  THIRD_PARTY_OWNED
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  RESERVED
+  RENTED
+  MAINTENANCE
+  UNAVAILABLE
+  INACTIVE
+}
+
+enum VehicleType {
+  CAR
+  SUV
+  VAN
+  OTHER
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  HYBRID
+  ELECTRIC
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+}
+
+enum DocumentType {
+  INSURANCE
+  REVENUE_LICENCE
+  EMISSION_CERTIFICATE
+  REGISTRATION
+  ADDRESS_VERIFICATION
+  DRIVING_LICENCE
+  NIC
+  CUSTOMER_PHOTO
+  OTHER
+}
+
+enum RentalType {
+  SELF_DRIVE
+  WITH_DRIVER
+}
+
+enum RentalStatus {
+  INQUIRY
+  QUOTED
+  CONFIRMED
+  ACTIVE
+  RETURNED
+  COMPLETED
+  CANCELLED
+}
+
+enum RatePlanType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum DamageStatus {
+  REPORTED
+  ASSESSED
+  CHARGED
+  RESOLVED
+}
+
+enum DamagePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  ONLINE
+  OTHER
+}
+
+enum PaymentType {
+  ADVANCE
+  RENTAL_PAYMENT
+  FINAL_PAYMENT
+  DAMAGE_PAYMENT
+  ADDITIONAL_CHARGE
+  SECURITY_DEPOSIT
+  SECURITY_DEPOSIT_REFUND
+}
+
+enum SecurityDepositStatus {
+  HELD
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FORFEITED
+}
+
+enum SettlementStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+}
+
+enum MaintenanceType {
+  OIL_CHANGE
+  FULL_SERVICE
+  BRAKE_SERVICE
+  TYRES
+  BATTERY
+  AC_REPAIR
+  ENGINE_REPAIR
+  BODY_REPAIR
+  ACCIDENT_REPAIR
+  OTHER
+}
+
+enum ExpenseCategory {
+  FUEL
+  MAINTENANCE
+  REPAIR
+  INSURANCE
+  REVENUE_LICENCE
+  EMISSION_TEST
+  DRIVER_PAYMENT
+  DRIVER_ACCOMMODATION
+  PARKING
+  TOLL
+  CLEANING
+  OWNER_PAYMENT
+  BROKER_COMMISSION
+  OTHER
+}
+
+enum DriverExpenseType {
+  PAYMENT
+  FOOD
+  ACCOMMODATION
+  TRAVEL
+  OTHER
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  BLACKLIST
+  PAYMENT
+  SETTLEMENT
+  ASSIGN
+  STATUS_CHANGE
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum FuelLevel {
+  EMPTY
+  QUARTER
+  HALF
+  THREE_QUARTER
+  FULL
+}
+
+enum CleaningStatus {
+  CLEAN
+  NEEDS_CLEANING
+  DEEP_CLEAN_REQUIRED
+}
+
+// ─── Identity & Access ───────────────────────────────────────────────────────
+
+model User {
+  id                     String     @id @default(cuid())
+  email                  String     @unique
+  password               String
+  name                   String
+  phone                  String?
+  role                   UserRole   @default(EMPLOYEE)
+  status                 UserStatus @default(ACTIVE)
+  subscriptionExpiresAt  DateTime?
+  annualFeeNotifiedAt    DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  deletedAt              DateTime?
+
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  customersCreated       Customer[]         @relation("CustomerCreatedBy")
+  customersUpdated       Customer[]         @relation("CustomerUpdatedBy")
+  blacklistRecords       CustomerBlacklist[]
+  customersBlacklisted   Customer[]         @relation("CustomerBlacklistedBy")
+  rentalsCreated         Rental[]           @relation("RentalCreatedBy")
+  rentalsUpdated         Rental[]           @relation("RentalUpdatedBy")
+  paymentsRecorded       Payment[]          @relation("PaymentRecordedBy")
+  expensesCreated        Expense[]          @relation("ExpenseCreatedBy")
+  maintenanceCreated     VehicleMaintenance[] @relation("MaintenanceCreatedBy")
+  ownerSettlementsPaid   OwnerSettlement[]  @relation("OwnerSettlementPaidBy")
+  brokerCommissionsPaid  BrokerCommission[] @relation("BrokerCommissionPaidBy")
+
+  @@index([email])
+  @@index([role])
+  @@index([subscriptionExpiresAt])
+  @@map("users")
+}
+
+// ─── System Configuration ────────────────────────────────────────────────────
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ─── Customers ───────────────────────────────────────────────────────────────
+
+model Customer {
+  id                    String         @id @default(cuid())
+  customerCode          String         @unique
+  fullName              String
+  nic                   String         @unique
+  passportNumber        String?
+  phone                 String
+  whatsapp              String?
+  address               String         @db.Text
+  drivingLicenceNumber  String?
+  drivingLicenceExpiry  DateTime?
+  emergencyContact      String?
+  registrationDate      DateTime       @default(now())
+  notes                 String?        @db.Text
+  status                CustomerStatus @default(NORMAL)
+  blacklistReason       String?        @db.Text
+  blacklistDate         DateTime?
+  blacklistedById       String?
+  createdById           String
+  updatedById           String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deletedAt             DateTime?
+
+  createdBy      User                @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+  updatedBy      User?               @relation("CustomerUpdatedBy", fields: [updatedById], references: [id])
+  blacklistedBy  User?               @relation("CustomerBlacklistedBy", fields: [blacklistedById], references: [id])
+  documents      CustomerDocument[]
+  blacklistHistory CustomerBlacklist[]
+  rentals        Rental[]
+  payments       Payment[]
+  damages        RentalDamage[]
+
+  @@index([nic])
+  @@index([phone])
+  @@index([fullName])
+  @@index([status])
+  @@map("customers")
+}
+
+model CustomerDocument {
+  id             String       @id @default(cuid())
+  customerId     String
+  documentType   DocumentType
+  documentNumber String?
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  filePath       String?
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([expiryDate])
+  @@map("customer_documents")
+}
+
+model CustomerBlacklist {
+  id         String   @id @default(cuid())
+  customerId String
+  reason     String   @db.Text
+  notes      String?  @db.Text
+  action     String
+  createdById String
+  createdAt  DateTime @default(now())
+
+  customer  Customer @relation(fields: [customerId], references: [id])
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@index([customerId])
+  @@map("customer_blacklist_history")
+}
+
+// ─── Vehicle Owners ──────────────────────────────────────────────────────────
+
+model VehicleOwner {
+  id            String       @id @default(cuid())
+  ownerCode     String       @unique
+  name          String
+  nic           String?
+  phone         String
+  whatsapp      String?
+  email         String?
+  address       String?      @db.Text
+  bankName      String?
+  bankAccount   String?
+  bankBranch    String?
+  notes         String?      @db.Text
+  status        EntityStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  vehicles     Vehicle[]
+  settlements  OwnerSettlement[]
+  expenses     Expense[]
+
+  @@index([name])
+  @@index([phone])
+  @@index([email])
+  @@map("vehicle_owners")
+}
+
+// ─── Vehicles ────────────────────────────────────────────────────────────────
+
+model Vehicle {
+  id                 String        @id @default(cuid())
+  vehicleCode        String        @unique
+  registrationNumber String        @unique
+  vehicleType        VehicleType   @default(CAR)
+  make               String
+  model              String
+  year               Int
+  colour             String
+  fuelType           FuelType      @default(PETROL)
+  transmission       Transmission  @default(AUTOMATIC)
+  seatingCapacity    Int           @default(4)
+  currentOdometer    Int           @default(0)
+  dailyRate          Decimal       @db.Decimal(12, 2)
+  includedKm         Int           @default(200)
+  extraKmRate        Decimal       @db.Decimal(12, 2)
+  ownerDailyRate     Decimal?      @db.Decimal(12, 2)
+  ownerExtraKmRate   Decimal?      @db.Decimal(12, 2)
+  weeklyRate         Decimal?      @db.Decimal(12, 2)
+  monthlyRate        Decimal?      @db.Decimal(12, 2)
+  ownerId            String?
+  ownershipType      OwnershipType @default(COMPANY_OWNED)
+  status             VehicleStatus @default(AVAILABLE)
+  notes              String?       @db.Text
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+
+  owner        VehicleOwner?        @relation(fields: [ownerId], references: [id])
+  documents    VehicleDocument[]
+  maintenance  VehicleMaintenance[]
+  rentals      Rental[]
+  damages      RentalDamage[]
+  expenses     Expense[]
+  ratePlans    RatePlan[]
+  unavailablePeriods VehicleUnavailablePeriod[]
+
+  @@index([registrationNumber])
+  @@index([status])
+  @@index([ownerId])
+  @@map("vehicles")
+}
+
+model VehicleDocument {
+  id             String       @id @default(cuid())
+  vehicleId      String
+  documentType   DocumentType
+  documentNumber String?
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  filePath       String?
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@index([expiryDate])
+  @@index([documentType])
+  @@map("vehicle_documents")
+}
+
+model VehicleUnavailablePeriod {
+  id        String   @id @default(cuid())
+  vehicleId String
+  startDate DateTime
+  endDate   DateTime
+  reason    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId, startDate, endDate])
+  @@map("vehicle_unavailable_periods")
+}
+
+model VehicleMaintenance {
+  id              String          @id @default(cuid())
+  maintenanceCode String          @unique
+  vehicleId       String
+  maintenanceType MaintenanceType
+  date            DateTime
+  odometer        Int?
+  description     String          @db.Text
+  serviceProvider String?
+  cost            Decimal         @db.Decimal(12, 2) @default(0)
+  nextServiceDate DateTime?
+  nextServiceKm   Int?
+  invoicePath     String?
+  notes           String?         @db.Text
+  createdById     String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+  createdBy User    @relation("MaintenanceCreatedBy", fields: [createdById], references: [id])
+
+  @@index([vehicleId])
+  @@index([date])
+  @@index([nextServiceDate])
+  @@map("vehicle_maintenance")
+}
+
+model RatePlan {
+  id          String       @id @default(cuid())
+  vehicleId   String
+  planType    RatePlanType
+  rate        Decimal      @db.Decimal(12, 2)
+  includedKm  Int?
+  extraKmRate Decimal?     @db.Decimal(12, 2)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@map("rate_plans")
+}
+
+// ─── Drivers ─────────────────────────────────────────────────────────────────
+
+model Driver {
+  id                   String       @id @default(cuid())
+  driverCode           String       @unique
+  name                 String
+  nic                  String       @unique
+  phone                String
+  whatsapp             String?
+  address              String?      @db.Text
+  drivingLicence       String
+  licenceExpiry        DateTime
+  dailyPayment         Decimal      @db.Decimal(12, 2) @default(0)
+  status               EntityStatus @default(ACTIVE)
+  notes                String?      @db.Text
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  deletedAt            DateTime?
+
+  rentals   Rental[]
+  payments  DriverPayment[]
+  expenses  DriverExpense[]
+
+  @@index([nic])
+  @@index([name])
+  @@map("drivers")
+}
+
+// ─── Brokers ─────────────────────────────────────────────────────────────────
+
+model Broker {
+  id         String       @id @default(cuid())
+  brokerCode String       @unique
+  name       String
+  nic        String?
+  phone      String
+  whatsapp   String?
+  email      String?
+  address    String?      @db.Text
+  notes                      String?      @db.Text
+  defaultCommissionPerDay      Decimal      @default(0) @db.Decimal(12, 2)
+  defaultCommissionPerExtraKm  Decimal      @default(0) @db.Decimal(12, 2)
+  status                     EntityStatus @default(ACTIVE)
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  deletedAt                  DateTime?
+
+  rentals     Rental[]
+  commissions BrokerCommission[]
+  expenses    Expense[]
+
+  @@index([name])
+  @@index([phone])
+  @@index([email])
+  @@map("brokers")
+}
+
+// ─── Rentals ─────────────────────────────────────────────────────────────────
+
+model Rental {
+  id              String       @id @default(cuid())
+  bookingNumber   String       @unique
+  customerId      String
+  vehicleId       String?
+  rentalType      RentalType   @default(SELF_DRIVE)
+  ratePlanType    RatePlanType @default(DAILY)
+  pickupDate      DateTime
+  pickupTime      String       @default("19:00")
+  returnDate      DateTime
+  returnTime      String       @default("19:00")
+  pickupLocation  String?
+  returnLocation  String?
+  rentalDays      Int          @default(1)
+  dailyRate       Decimal      @db.Decimal(12, 2) @default(0)
+  includedKm      Int          @default(200)
+  extraKmRate     Decimal      @db.Decimal(12, 2) @default(0)
+  estimatedTotal  Decimal      @db.Decimal(12, 2) @default(0)
+  deliveryCharge  Decimal      @db.Decimal(12, 2) @default(0)
+  driverCharge    Decimal      @db.Decimal(12, 2) @default(0)
+  otherCharges    Decimal      @db.Decimal(12, 2) @default(0)
+  discount        Decimal      @db.Decimal(12, 2) @default(0)
+  securityDeposit Decimal      @db.Decimal(12, 2) @default(0)
+  advancePayment  Decimal      @db.Decimal(12, 2) @default(0)
+  finalTotal      Decimal      @db.Decimal(12, 2) @default(0)
+  totalPaid       Decimal      @db.Decimal(12, 2) @default(0)
+  balance         Decimal      @db.Decimal(12, 2) @default(0)
+  extraKm                  Int          @default(0)
+  extraKmCharge            Decimal      @db.Decimal(12, 2) @default(0)
+  startingOdometer         Int?
+  endingOdometer           Int?
+  brokerCommissionPerDay     Decimal?     @db.Decimal(12, 2)
+  brokerCommissionPerExtraKm Decimal?     @db.Decimal(12, 2)
+  ownerDailyRate             Decimal?     @db.Decimal(12, 2)
+  ownerExtraKmRate           Decimal?     @db.Decimal(12, 2)
+  status                     RentalStatus @default(INQUIRY)
+  driverId                   String?
+  brokerId                   String?
+  notes           String?      @db.Text
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  vehicle          Vehicle?          @relation(fields: [vehicleId], references: [id])
+  driver           Driver?           @relation(fields: [driverId], references: [id])
+  broker           Broker?           @relation(fields: [brokerId], references: [id])
+  createdBy        User              @relation("RentalCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?             @relation("RentalUpdatedBy", fields: [updatedById], references: [id])
+  handover         RentalHandover?
+  returnRecord     RentalReturn?
+  damages          RentalDamage[]
+  charges          RentalCharge[]
+  payments         Payment[]
+  securityDeposits SecurityDeposit[]
+  ownerSettlement  OwnerSettlement?
+  brokerCommission BrokerCommission?
+  driverPayments   DriverPayment[]
+  driverExpenses   DriverExpense[]
+  expenses         Expense[]
+
+  @@index([bookingNumber])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([pickupDate, returnDate])
+  @@index([driverId])
+  @@index([brokerId])
+  @@map("rentals")
+}
+
+model RentalHandover {
+  id                    String    @id @default(cuid())
+  rentalId              String    @unique
+  handoverDate          DateTime
+  handoverTime          String
+  startingOdometer      Int
+  startingFuelLevel     FuelLevel @default(FULL)
+  vehicleCondition      String?   @db.Text
+  existingDamage        String?   @db.Text
+  notes                 String?   @db.Text
+  photos                Json?
+  videos                Json?
+  customerAcknowledged  Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+
+  @@map("rental_handovers")
+}
+
+model RentalReturn {
+  id                String         @id @default(cuid())
+  rentalId          String         @unique
+  returnDate        DateTime
+  returnTime        String
+  endingOdometer    Int
+  endingFuelLevel   FuelLevel      @default(FULL)
+  totalKm           Int            @default(0)
+  freeKm            Int            @default(0)
+  extraKm           Int            @default(0)
+  extraKmCharge     Decimal        @db.Decimal(12, 2) @default(0)
+  vehicleCondition  String?        @db.Text
+  newDamage         String?        @db.Text
+  cleaningStatus    CleaningStatus @default(CLEAN)
+  isLateReturn      Boolean        @default(false)
+  lateReturnCharge  Decimal        @db.Decimal(12, 2) @default(0)
+  additionalCharges Decimal        @db.Decimal(12, 2) @default(0)
+  photos            Json?
+  videos            Json?
+  inspectionNotes   String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+
+  @@map("rental_returns")
+}
+
+model RentalDamage {
+  id              String              @id @default(cuid())
+  damageCode      String              @unique
+  rentalId        String
+  vehicleId       String
+  customerId      String
+  damageType      String
+  description     String              @db.Text
+  estimatedCost   Decimal             @db.Decimal(12, 2) @default(0)
+  customerCharge  Decimal             @db.Decimal(12, 2) @default(0)
+  photos          Json?
+  videos          Json?
+  damageDate      DateTime            @default(now())
+  status          DamageStatus        @default(REPORTED)
+  paymentStatus   DamagePaymentStatus @default(UNPAID)
+  notes           String?             @db.Text
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  rental   Rental   @relation(fields: [rentalId], references: [id])
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([rentalId])
+  @@index([vehicleId])
+  @@index([status])
+  @@map("rental_damages")
+}
+
+model RentalCharge {
+  id          String   @id @default(cuid())
+  rentalId    String
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+
+  @@index([rentalId])
+  @@map("rental_charges")
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+
+model Payment {
+  id              String        @id @default(cuid())
+  paymentCode     String        @unique
+  rentalId        String
+  customerId      String
+  amount          Decimal       @db.Decimal(12, 2)
+  paymentMethod   PaymentMethod
+  paymentDate     DateTime      @default(now())
+  referenceNumber String?
+  paymentType     PaymentType
+  notes           String?       @db.Text
+  recordedById    String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  rental     Rental   @relation(fields: [rentalId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
+  recordedBy User     @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([rentalId])
+  @@index([customerId])
+  @@index([paymentDate])
+  @@index([paymentType])
+  @@map("payments")
+}
+
+model SecurityDeposit {
+  id             String                @id @default(cuid())
+  rentalId       String
+  depositAmount  Decimal               @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod
+  receivedDate   DateTime              @default(now())
+  amountRetained Decimal               @db.Decimal(12, 2) @default(0)
+  retainReason   String?               @db.Text
+  refundAmount   Decimal               @db.Decimal(12, 2) @default(0)
+  refundDate     DateTime?
+  refundMethod   PaymentMethod?
+  status         SecurityDepositStatus @default(HELD)
+  notes          String?               @db.Text
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+
+  @@index([rentalId])
+  @@index([status])
+  @@map("security_deposits")
+}
+
+// ─── Settlements ─────────────────────────────────────────────────────────────
+
+model OwnerSettlement {
+  id                String           @id @default(cuid())
+  rentalId          String           @unique
+  ownerId           String
+  rentalRevenue     Decimal          @db.Decimal(12, 2)
+  companyCommission Decimal          @db.Decimal(12, 2)
+  ownerDailyRate    Decimal          @default(0) @db.Decimal(12, 2)
+  ownerExtraKmRate  Decimal          @default(0) @db.Decimal(12, 2)
+  billableDays      Int              @default(0)
+  billableExtraKm   Int              @default(0)
+  ownerPayable      Decimal          @db.Decimal(12, 2)
+  paidAmount        Decimal          @db.Decimal(12, 2) @default(0)
+  paymentDate       DateTime?
+  paymentMethod     PaymentMethod?
+  referenceNumber   String?
+  status            SettlementStatus @default(PENDING)
+  notes             String?          @db.Text
+  paidById          String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  rental  Rental       @relation(fields: [rentalId], references: [id])
+  owner   VehicleOwner @relation(fields: [ownerId], references: [id])
+  paidBy  User?        @relation("OwnerSettlementPaidBy", fields: [paidById], references: [id])
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("owner_settlements")
+}
+
+model BrokerCommission {
+  id                String           @id @default(cuid())
+  rentalId          String           @unique
+  brokerId          String
+  rentalValue          Decimal          @db.Decimal(12, 2)
+  commissionPerDay     Decimal          @default(0) @db.Decimal(12, 2)
+  commissionPerExtraKm Decimal          @default(0) @db.Decimal(12, 2)
+  billableDays         Int              @default(0)
+  billableExtraKm      Int              @default(0)
+  commissionAmount     Decimal          @db.Decimal(12, 2)
+  paidAmount           Decimal          @db.Decimal(12, 2) @default(0)
+  paymentDate       DateTime?
+  paymentMethod     PaymentMethod?
+  referenceNumber   String?
+  status            SettlementStatus @default(PENDING)
+  notes             String?          @db.Text
+  paidById          String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  rental  Rental @relation(fields: [rentalId], references: [id])
+  broker  Broker @relation(fields: [brokerId], references: [id])
+  paidBy  User?  @relation("BrokerCommissionPaidBy", fields: [paidById], references: [id])
+
+  @@index([brokerId])
+  @@index([status])
+  @@map("broker_commissions")
+}
+
+model DriverPayment {
+  id            String        @id @default(cuid())
+  driverId      String
+  rentalId      String?
+  amount        Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  paymentDate   DateTime      @default(now())
+  referenceNumber String?
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+
+  driver Driver  @relation(fields: [driverId], references: [id])
+  rental Rental? @relation(fields: [rentalId], references: [id])
+
+  @@index([driverId])
+  @@index([rentalId])
+  @@map("driver_payments")
+}
+
+model DriverExpense {
+  id          String            @id @default(cuid())
+  driverId    String
+  rentalId    String?
+  expenseType DriverExpenseType
+  amount      Decimal           @db.Decimal(12, 2)
+  expenseDate DateTime          @default(now())
+  description String?           @db.Text
+  notes       String?           @db.Text
+  createdAt   DateTime          @default(now())
+
+  driver Driver  @relation(fields: [driverId], references: [id])
+  rental Rental? @relation(fields: [rentalId], references: [id])
+
+  @@index([driverId])
+  @@index([rentalId])
+  @@map("driver_expenses")
+}
+
+// ─── Expenses ────────────────────────────────────────────────────────────────
+
+model Expense {
+  id          String          @id @default(cuid())
+  expenseCode String          @unique
+  category    ExpenseCategory
+  amount      Decimal         @db.Decimal(12, 2)
+  expenseDate DateTime        @default(now())
+  description String          @db.Text
+  vehicleId   String?
+  rentalId    String?
+  driverId    String?
+  ownerId     String?
+  brokerId    String?
+  invoicePath String?
+  notes       String?         @db.Text
+  createdById String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  vehicle   Vehicle?      @relation(fields: [vehicleId], references: [id])
+  rental    Rental?       @relation(fields: [rentalId], references: [id])
+  owner     VehicleOwner? @relation(fields: [ownerId], references: [id])
+  broker    Broker?       @relation(fields: [brokerId], references: [id])
+  createdBy User          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  @@index([category])
+  @@index([expenseDate])
+  @@index([vehicleId])
+  @@map("expenses")
+}
+
+// ─── Notifications & Audit ───────────────────────────────────────────────────
+
+model Notification {
+  id        String               @id @default(cuid())
+  userId    String?
+  title     String
+  message   String               @db.Text
+  severity  NotificationSeverity @default(INFO)
+  entityType String?
+  entityId  String?
+  isRead    Boolean              @default(false)
+  createdAt DateTime             @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String
+  action     AuditAction
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
