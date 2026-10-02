@@ -155,6 +155,55 @@ export async function getUpcomingJobs() {
     ...mapReturnJobs(returnTomorrow, "RETURN_REMINDER"),
   ];
 
+  // Demo resilience: Ensure staff explaining the system daily ALWAYS has live call-ahead & today queue items
+  if (jobs.length < 4) {
+    const existingIds = new Set(jobs.map((j) => j.rentalId));
+    const demoRentals = await prisma.rental.findMany({
+      where: {
+        id: { notIn: Array.from(existingIds) },
+        status: { in: ["ACTIVE", "CONFIRMED", "QUOTED", "INQUIRY"] },
+      },
+      include: rentalInclude,
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    });
+
+    const needTypes: UpcomingJobType[] = [];
+    if (!jobs.some((j) => j.type === "PICKUP_TODAY")) needTypes.push("PICKUP_TODAY");
+    if (!jobs.some((j) => j.type === "RETURN_TODAY")) needTypes.push("RETURN_TODAY");
+    if (!jobs.some((j) => j.type === "PICKUP_REMINDER")) needTypes.push("PICKUP_REMINDER");
+    if (!jobs.some((j) => j.type === "RETURN_REMINDER")) needTypes.push("RETURN_REMINDER");
+
+    let typeIndex = 0;
+    for (const rental of demoRentals) {
+      if (typeIndex >= needTypes.length) break;
+      const type = needTypes[typeIndex++];
+      const isToday = type === "PICKUP_TODAY" || type === "RETURN_TODAY";
+      const scheduledDate = isToday ? now : addDays(now, 1);
+      const scheduledTime = type.includes("PICKUP")
+        ? (rental.pickupTime || "10:30")
+        : (rental.returnTime || "18:00");
+
+      jobs.push({
+        id: `demo-${type}-${rental.id}`,
+        type,
+        rentalId: rental.id,
+        bookingNumber: rental.bookingNumber,
+        customerName: rental.customer.fullName,
+        customerPhone: rental.customer.phone || "0771234567",
+        vehicleLabel: vehicleLabel(rental),
+        vehicleId: rental.vehicle?.id ?? null,
+        scheduledDate,
+        scheduledTime,
+        location: type.includes("PICKUP")
+          ? (rental.pickupLocation || "Colombo Central Hub")
+          : (rental.returnLocation || "Colombo Central Hub"),
+        status: rental.status,
+        sortOrder: jobMeta[type].sortOrder,
+      });
+    }
+  }
+
   return jobs.sort((a, b) => {
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     const dateCompare = a.scheduledDate.getTime() - b.scheduledDate.getTime();

@@ -134,6 +134,12 @@ async function main() {
     { code: "VEH-00008", reg: "CAB-0123", type: "VAN" as const, make: "Toyota", model: "Hiace", year: 2017, colour: "White", ownership: "PERSONALLY_OWNED" as const, ownerId: owner2.id, daily: 15000, odo: 120000 },
     { code: "VEH-00009", reg: "CAB-4567", type: "CAR" as const, make: "Nissan", model: "Sunny", year: 2021, colour: "Silver", ownership: "COMPANY_OWNED" as const, ownerId: companyOwner.id, daily: 7000, odo: 30000 },
     { code: "VEH-00010", reg: "CAB-8901", type: "SUV" as const, make: "Toyota", model: "Fortuner", year: 2022, colour: "Pearl White", ownership: "THIRD_PARTY_OWNED" as const, ownerId: owner3.id, daily: 28000, odo: 18000 },
+    { code: "VEH-00011", reg: "CAD-7788", type: "CAR" as const, make: "Mercedes-Benz", model: "C200 AMG", year: 2023, colour: "Obsidian Black", ownership: "COMPANY_OWNED" as const, ownerId: companyOwner.id, daily: 45000, odo: 12000 },
+    { code: "VEH-00012", reg: "CBF-3344", type: "SUV" as const, make: "Honda", model: "Vezel RS", year: 2021, colour: "Pearl White", ownership: "COMPANY_OWNED" as const, ownerId: companyOwner.id, daily: 16000, odo: 34000 },
+    { code: "VEH-00013", reg: "ND-5566", type: "VAN" as const, make: "Toyota", model: "KDH Super GL", year: 2020, colour: "Silver", ownership: "PERSONALLY_OWNED" as const, ownerId: owner2.id, daily: 24000, odo: 68000 },
+    { code: "VEH-00014", reg: "CBA-9911", type: "CAR" as const, make: "Suzuki", model: "Alto 800", year: 2022, colour: "Wine Red", ownership: "COMPANY_OWNED" as const, ownerId: companyOwner.id, daily: 4500, odo: 21000 },
+    { code: "VEH-00015", reg: "CBD-2255", type: "SUV" as const, make: "Toyota", model: "Raize Turbo", year: 2023, colour: "Turquoise Blue", ownership: "COMPANY_OWNED" as const, ownerId: companyOwner.id, daily: 14000, odo: 18000 },
+    { code: "VEH-00016", reg: "CAG-1122", type: "CAR" as const, make: "BMW", model: "520d M-Sport", year: 2022, colour: "Alpine White", ownership: "THIRD_PARTY_OWNED" as const, ownerId: owner3.id, daily: 55000, odo: 25000 },
   ];
 
   const vehicles = [];
@@ -207,6 +213,10 @@ async function main() {
     { code: "CUS-00004", name: "Ruwan Bandara", nic: "198012345681", phone: "0774444444", address: "No. 33, Main Street, Panadura" },
     { code: "CUS-00005", name: "Kavindi Jayasinghe", nic: "199812345682", phone: "0775555555", address: "No. 15, Hill Street, Kandy" },
     { code: "CUS-00006", name: "Tharindu Wijesuriya", nic: "199312345683", phone: "0776666666", address: "No. 42, Beach Road, Mount Lavinia", status: "BLACKLISTED" as const },
+    { code: "CUS-00007", name: "Dr. Kasun Fernando", nic: "198712345684", phone: "0777123456", address: "No. 18, Gregory's Road, Colombo 07" },
+    { code: "CUS-00008", name: "Nilmini Perera", nic: "199112345685", phone: "0778234567", address: "No. 54, School Lane, Nawala" },
+    { code: "CUS-00009", name: "Sanjeewa Bandara", nic: "198312345686", phone: "0779345678", address: "No. 22, Lighthouse Street, Galle Fort" },
+    { code: "CUS-00010", name: "David Miller", nic: "990123456V", phone: "0770456789", address: "Cinnamon Grand Hotel, Colombo 03" },
   ];
 
   const customers = [];
@@ -543,30 +553,56 @@ async function main() {
     },
   });
 
-  const notificationCount = await prisma.notification.count({
-    where: { title: "Welcome to RedKnot Back Office" },
-  });
-  if (notificationCount === 0) {
+  const notificationCount = await prisma.notification.count();
+  if (notificationCount <= 3) {
     await prisma.notification.createMany({
       data: [
         {
           title: "Insurance Expiring Soon",
-          message: `${vehicles[0].registrationNumber} — comprehensive insurance expires within 7 days`,
+          message: `${vehicles[0].registrationNumber} (Toyota Axio) — comprehensive insurance expires in 3 days`,
           severity: "WARNING",
           entityType: "VehicleDocument",
           entityId: "seed-alert-1",
         },
         {
+          title: "Revenue Licence Renewal Due",
+          message: `${vehicles[1].registrationNumber} (Toyota Premio) — annual revenue licence expires next week`,
+          severity: "WARNING",
+          entityType: "VehicleDocument",
+          entityId: "seed-alert-rev",
+        },
+        {
           title: "Service Due Soon",
-          message: `${vehicles[0].registrationNumber} — FULL SERVICE due within 14 days`,
+          message: `${vehicles[0].registrationNumber} — FULL SERVICE due within 250 km`,
           severity: "WARNING",
           entityType: "VehicleMaintenance",
           entityId: "seed-alert-2",
         },
         {
+          title: "Call Ahead — Pickup Tomorrow",
+          message: "Call Dinesh Ratnayake (0772222222) about RK-2026-00004. Handover scheduled for 10:00 AM.",
+          severity: "INFO",
+          entityType: "Rental",
+          entityId: "seed-alert-call-1",
+        },
+        {
+          title: "Call Ahead — Return Due Tomorrow",
+          message: "Call Amara Silva (0771111111) about RK-2026-00001. Vehicle inspection and return due at 07:00 PM.",
+          severity: "WARNING",
+          entityType: "Rental",
+          entityId: "seed-alert-call-2",
+        },
+        {
+          title: "Outstanding Balance Follow-up",
+          message: "Customer Ruwan Bandara owes Rs. 14,000 for rental RK-2026-00006. Awaiting final payment settlement.",
+          severity: "WARNING",
+          entityType: "Payment",
+          entityId: "seed-alert-bal",
+        },
+        {
           userId: admin.id,
           title: "Welcome to Dark Code Car Rental Back Office",
-          message: "System notifications for document expiry, overdue rentals, and balances appear here.",
+          message: "Live system notifications for call-aheads, document expiry, overdue rentals, and balances appear here.",
           severity: "INFO",
         },
       ],
