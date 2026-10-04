@@ -106,27 +106,6 @@ export function LoginForm() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Signing in..." : "Sign In"}
           </Button>
-
-          <div className="rounded-lg border border-dashed border-primary/40 bg-muted/40 p-3 text-center text-xs">
-            <div className="font-semibold text-foreground mb-1">Demo Access For Customers</div>
-            <div className="text-muted-foreground mb-2">
-              Email: <span className="font-mono text-primary font-medium">admin@darkcode.lk</span>
-              <br />
-              Password: <span className="font-mono text-primary font-medium">Admin@123</span>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full text-xs h-8"
-              onClick={() => {
-                setEmail("admin@darkcode.lk");
-                setPassword("Admin@123");
-              }}
-            >
-              Autofill Demo Credentials
-            </Button>
-          </div>
         </form>
       </CardContent>
     </Card>
